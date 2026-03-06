@@ -1,0 +1,32 @@
+{
+  "name": "pageweight",
+  "version": "1.0.0",
+  "description": "Simple node package that calculates the overall weight of a webpage on initial load without click interactions.",
+  "main": "index.js",
+  "bin": {
+    "pageweight": "./bin/pageweight.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/briananders/Page-weight.git"
+  },
+  "keywords": [
+    "pageweight",
+    "performance",
+    "web",
+    "chrome",
+    "puppeteer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/briananders/Page-weight/issues"
+  },
+  "homepage": "https://github.com/briananders/Page-weight#readme",
+  "dependencies": {
+    "puppeteer": "^24.38.0"
+  }
+}
