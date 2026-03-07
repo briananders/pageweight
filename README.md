@@ -10,7 +10,7 @@ A Node.js CLI tool that measures the total weight of a webpage on initial load. 
 - [Usage](#usage)
 - [How It Works](#how-it-works)
 - [Output](#output)
-- [Page Weight Budgets](#pageweight-budgets)
+- [Page Weight Budgets](#page-weight-budgets)
 - [Programmatic API](#programmatic-api)
 - [Contributing](#contributing)
 - [License](#license)

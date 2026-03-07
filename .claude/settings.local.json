@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(/Users/briananders/Code/pageweight/.gitignore:*)"
+      "Bash(/Users/briananders/Code/pageweight/.gitignore:*)",
+      "WebFetch(domain:docs.npmjs.com)",
+      "WebSearch",
+      "Bash(npm info:*)"
     ]
   }
 }
