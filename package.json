@@ -6,6 +6,10 @@
   "bin": {
     "pageweight": "./bin/pageweight.js"
   },
+  "files": [
+    "bin/",
+    "index.js"
+  ],
   "scripts": {
     "test": "node test/test.js"
   },
@@ -20,8 +24,11 @@
     "chrome",
     "puppeteer"
   ],
-  "author": "",
+  "author": "Brian Anders <brian.steven.anders@gmail.com>",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "bugs": {
     "url": "https://github.com/briananders/pageweight/issues"
   },

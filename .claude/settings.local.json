@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/Users/briananders/Code/pageweight/.gitignore:*)"
+    ]
+  }
+}
