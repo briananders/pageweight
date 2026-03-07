@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/briananders/Page-weight.git"
+    "url": "git+https://github.com/briananders/pageweight.git"
   },
   "keywords": [
     "pageweight",
@@ -23,9 +23,9 @@
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/briananders/Page-weight/issues"
+    "url": "https://github.com/briananders/pageweight/issues"
   },
-  "homepage": "https://github.com/briananders/Page-weight#readme",
+  "homepage": "https://github.com/briananders/pageweight#readme",
   "dependencies": {
     "puppeteer": "^24.38.0"
   }

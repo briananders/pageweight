@@ -1,4 +1,4 @@
-# Page-weight
+# pageweight
 
 A Node.js CLI tool that measures the total weight of a webpage on initial load. It catalogues every asset the browser fetches — scripts, stylesheets, images, fonts, and more — and presents a formatted breakdown grouped by type and sorted by size.
 
@@ -10,7 +10,7 @@ A Node.js CLI tool that measures the total weight of a webpage on initial load. 
 - [Usage](#usage)
 - [How It Works](#how-it-works)
 - [Output](#output)
-- [Page Weight Budgets](#page-weight-budgets)
+- [Page Weight Budgets](#pageweight-budgets)
 - [Programmatic API](#programmatic-api)
 - [Contributing](#contributing)
 - [License](#license)
@@ -50,8 +50,8 @@ npm install -g pageweight
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/briananders/Page-weight.git
-cd Page-weight
+git clone https://github.com/briananders/pageweight.git
+cd pageweight
 npm install
 ```
 
@@ -294,7 +294,7 @@ Budget sizes accept: `B`, `KB`, `MB`, `GB`, or plain numbers (bytes).
 
 ## Programmatic API
 
-You can also use page-weight as a library:
+You can also use pageweight as a library:
 
 ```javascript
 const { analyze, formatTable, formatJSON, formatCSV, checkBudgets, parseSizeString } = require('pageweight');
@@ -372,7 +372,7 @@ Contributions are welcome. To get started:
 4. Push to the branch (`git push origin my-feature`)
 5. Open a pull request
 
-Please open an [issue](https://github.com/briananders/Page-weight/issues) first if you plan a large change so it can be discussed.
+Please open an [issue](https://github.com/briananders/pageweight/issues) first if you plan a large change so it can be discussed.
 
 ## License
 
