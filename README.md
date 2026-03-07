@@ -1,19 +1,72 @@
 # Page-weight
 
-Simple node package that calculates the overall weight of a webpage on initial load without click interactions.
+A Node.js CLI tool that measures the total weight of a webpage on initial load. It catalogues every asset the browser fetches — scripts, stylesheets, images, fonts, and more — and presents a formatted breakdown grouped by type and sorted by size.
 
-Supply your URL in the command line, and a viewport width. The script will do the rest.
+## Table of Contents
 
-```bash
-pageweight https://briananders.com 1440
-```
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Output](#output)
+- [Page Weight Budgets](#page-weight-budgets)
+- [Programmatic API](#programmatic-api)
+- [Contributing](#contributing)
+- [License](#license)
 
-The script works by spinning up a headless Chrome instance, setting the viewport, and then loading the page. Then, the webpage scrolls down to the bottom of the page at a reasonable rate. While all of this is happening, the script will catalog each asset that is loaded in the browser, along with its overall weight. The output of the script will be a formatted table that lists each artifact, grouped by type, and sorted by overall weight. Different assets will load at different viewport widths, and this script will calculate those values and provide them to you.
+## Features
+
+- Calculates the total transfer size of all assets loaded during a page visit
+- Groups assets by type (Script, Stylesheet, Image, Font, Media, Document, and more)
+- Sorts each group by size in descending order
+- Simulates real user behaviour by scrolling to the bottom of the page, capturing lazy-loaded resources
+- Supports configurable viewport width so you can compare asset loads across breakpoints
+- Configurable viewport height for non-square viewports
+- Multiple output formats: table (default), JSON, CSV
+- File output via `--output`
+- Page weight budgets — total, per-type group, and per-asset limits for CI/CD pipelines
+- Programmatic API for use as a library
+
+## Prerequisites
+
+- **Node.js** v18 or later
+- **npm** (bundled with Node.js)
+
+Puppeteer downloads a compatible version of Chromium automatically during installation, so no separate browser install is required.
 
 ## Installation
 
+### Global install (recommended)
+
+Install the package globally to make the `pageweight` command available everywhere:
+
 ```bash
 npm install -g pageweight
+```
+
+### Local install
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/briananders/Page-weight.git
+cd Page-weight
+npm install
+```
+
+Then run the tool with:
+
+```bash
+node bin/pageweight.js <url> <viewport-width>
+```
+
+### Run without installing
+
+Use `npx` to run the tool directly:
+
+```bash
+npx pageweight <url> <viewport-width>
 ```
 
 ## Usage
@@ -26,8 +79,8 @@ pageweight <url> <viewport-width> [options]
 
 | Argument | Description |
 |----------|-------------|
-| `url` | URL of the page to analyze |
-| `viewport-width` | Width of the viewport in pixels |
+| `url` | The full URL of the page to analyze (include `https://`) |
+| `viewport-width` | The viewport width in pixels — the viewport height defaults to the same value, creating a square viewport |
 
 ### Options
 
@@ -58,12 +111,24 @@ All budget sizes accept a number optionally followed by `B`, `KB`, `MB`, or `GB`
 | `--budget-per-image <size>` | Max weight for any single image |
 | `--budget-per-media <size>` | Max weight for any single media file |
 
-## Examples
+### Examples
 
-Basic usage with table output:
+Analyze a page at a desktop viewport width:
 
 ```bash
-pageweight https://example.com 1440
+pageweight https://briananders.com 1440
+```
+
+Analyze a page at a tablet viewport width:
+
+```bash
+pageweight https://briananders.com 768
+```
+
+Analyze a page at a mobile viewport width:
+
+```bash
+pageweight https://briananders.com 375
 ```
 
 Export results as JSON:
@@ -119,11 +184,42 @@ Skip scrolling and use a shorter timeout:
 pageweight https://example.com 1440 --no-scroll --timeout 30000
 ```
 
-## Output Formats
+## How It Works
+
+1. Launches a headless Chromium instance via [Puppeteer](https://pptr.dev/)
+2. Sets the viewport to the given width and height (defaults to a square)
+3. Navigates to the target URL and waits until network activity settles
+4. Scrolls from the top of the page to the bottom at a measured pace, triggering any lazy-loaded assets (unless `--no-scroll` is used)
+5. Waits briefly for remaining network requests to complete
+6. Collects the transfer size and MIME type of every request made by the browser
+7. Prints results in the chosen format (table, JSON, or CSV)
+
+Different viewport widths can cause different assets to load (responsive images, conditional scripts, etc.), so running the tool at multiple widths gives a more complete picture of your page's weight profile.
+
+## Output
 
 ### Table (default)
 
-A human-readable table grouped by asset type and sorted by size.
+The default output is a formatted table printed to stdout. Assets are grouped by type and each group is sorted largest-first. A grand total is displayed at the end.
+
+```
+----------------------------------------------------------------------------------------------------
+  Image (3 files) — Total: 1.20 MB
+----------------------------------------------------------------------------------------------------
+       800.00 KB  https://example.com/hero.webp
+       350.00 KB  https://example.com/photo.jpg
+        50.00 KB  https://example.com/icon.svg
+
+----------------------------------------------------------------------------------------------------
+  Script (2 files) — Total: 320.00 KB
+----------------------------------------------------------------------------------------------------
+       250.00 KB  https://example.com/bundle.js
+        70.00 KB  https://example.com/analytics.js
+
+====================================================================================================
+  TOTAL PAGE WEIGHT: 1.52 MB (5 requests)
+====================================================================================================
+```
 
 ### JSON
 
@@ -153,6 +249,48 @@ Structured JSON with full metadata including per-group totals and a summary:
 ### CSV
 
 Comma-separated values with columns: `type`, `url`, `size_bytes`, `size_formatted`.
+
+## Page Weight Budgets
+
+The budget flags are designed for CI/CD pipelines. Set maximum weight constraints and the tool will exit with code 1 if any budget is exceeded, printing all violations.
+
+### Overall budget
+
+```bash
+pageweight https://example.com 1440 --budget 2MB
+```
+
+### Per-type group budgets
+
+Limit the total weight of all assets within a type:
+
+```bash
+pageweight https://example.com 1440 --budget-image 500KB --budget-script 300KB
+```
+
+### Per-asset budgets
+
+Limit the weight of any single asset. Use `--budget-per-asset` for a universal limit, or `--budget-per-image` / `--budget-per-media` for type-specific limits:
+
+```bash
+pageweight https://example.com 1440 --budget-per-image 200KB --budget-per-media 2MB
+```
+
+### Combining budgets
+
+All budget flags can be used together. Every constraint is checked independently:
+
+```bash
+pageweight https://example.com 1440 \
+  --budget 2MB \
+  --budget-image 500KB \
+  --budget-per-image 200KB \
+  --budget-media 5MB \
+  --budget-per-media 2MB \
+  --budget-script 300KB
+```
+
+Budget sizes accept: `B`, `KB`, `MB`, `GB`, or plain numbers (bytes).
 
 ## Programmatic API
 
@@ -200,46 +338,6 @@ console.log(formatCSV(result.assets));
 | `totalSizeFormatted` | `string` | Human-readable total size |
 | `requestCount` | `number` | Total number of requests |
 
-## Page Weight Budgets
-
-The budget flags are designed for CI/CD pipelines. Set maximum weight constraints and the tool will exit with code 1 if any budget is exceeded, printing all violations.
-
-### Overall budget
-
-```bash
-pageweight https://example.com 1440 --budget 2MB
-```
-
-### Per-type group budgets
-
-Limit the total weight of all assets within a type:
-
-```bash
-pageweight https://example.com 1440 --budget-image 500KB --budget-script 300KB
-```
-
-### Per-asset budgets
-
-Limit the weight of any single asset. Use `--budget-per-asset` for a universal limit, or `--budget-per-image` / `--budget-per-media` for type-specific limits:
-
-```bash
-pageweight https://example.com 1440 --budget-per-image 200KB --budget-per-media 2MB
-```
-
-### Combining budgets
-
-All budget flags can be used together. Every constraint is checked independently:
-
-```bash
-pageweight https://example.com 1440 \
-  --budget 2MB \
-  --budget-image 500KB \
-  --budget-per-image 200KB \
-  --budget-media 5MB \
-  --budget-per-media 2MB \
-  --budget-script 300KB
-```
-
 ### Programmatic budget checking
 
 ```javascript
@@ -264,8 +362,18 @@ if (violations.length > 0) {
 }
 ```
 
-Budget sizes accept: `B`, `KB`, `MB`, `GB`, or plain numbers (bytes).
+## Contributing
+
+Contributions are welcome. To get started:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b my-feature`)
+3. Commit your changes (`git commit -m "Add my feature"`)
+4. Push to the branch (`git push origin my-feature`)
+5. Open a pull request
+
+Please open an [issue](https://github.com/briananders/Page-weight/issues) first if you plan a large change so it can be discussed.
 
 ## License
 
-ISC
+This project is licensed under the [ISC License](https://opensource.org/licenses/ISC).
