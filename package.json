@@ -4,7 +4,7 @@
   "description": "Simple node package that calculates the overall weight of a webpage on initial load without click interactions.",
   "main": "index.js",
   "bin": {
-    "pageweight": "./bin/pageweight.js"
+    "pageweight": "bin/pageweight.js"
   },
   "files": [
     "bin/",
