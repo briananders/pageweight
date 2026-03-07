@@ -1,199 +1,318 @@
 #!/usr/bin/env node
 
-const puppeteer = require('puppeteer');
+const fs = require('fs');
+const path = require('path');
+const { analyze, formatTable, formatJSON, formatCSV, formatBytes, parseSizeString, checkBudgets } = require('../index');
+const pkg = require('../package.json');
 
-const url = process.argv[2];
-const viewportWidth = parseInt(process.argv[3], 10);
+function parseArgs(argv) {
+  const args = argv.slice(2);
+  const options = {
+    url: null,
+    width: null,
+    height: null,
+    format: 'table',
+    output: null,
+    timeout: 60000,
+    budget: null,
+    budgetImage: null,
+    budgetMedia: null,
+    budgetScript: null,
+    budgetStylesheet: null,
+    budgetFont: null,
+    budgetDocument: null,
+    budgetPerAsset: null,
+    budgetPerImage: null,
+    budgetPerMedia: null,
+    scroll: true,
+    help: false,
+    version: false,
+  };
 
-if (!url || !viewportWidth) {
-  console.error('Usage: pageweight <url> <viewport-width>');
-  console.error('Example: pageweight https://briananders.com 1440');
-  process.exit(1);
-}
+  const positional = [];
 
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const value = bytes / Math.pow(1024, i);
-  return `${value.toFixed(2)} ${units[i]}`;
-}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
 
-function classifyResource(mimeType, resourceUrl) {
-  if (!mimeType) {
-    const ext = resourceUrl.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
-    const extMap = {
-      js: 'Script',
-      mjs: 'Script',
-      css: 'Stylesheet',
-      html: 'Document',
-      htm: 'Document',
-      json: 'JSON',
-      xml: 'XML',
-      svg: 'Image',
-      png: 'Image',
-      jpg: 'Image',
-      jpeg: 'Image',
-      gif: 'Image',
-      webp: 'Image',
-      avif: 'Image',
-      ico: 'Image',
-      woff: 'Font',
-      woff2: 'Font',
-      ttf: 'Font',
-      otf: 'Font',
-      eot: 'Font',
-      mp4: 'Media',
-      webm: 'Media',
-      ogg: 'Media',
-      mp3: 'Media',
-    };
-    return extMap[ext] || 'Other';
-  }
-
-  if (mimeType.includes('javascript') || mimeType.includes('ecmascript')) return 'Script';
-  if (mimeType.includes('css')) return 'Stylesheet';
-  if (mimeType.includes('html')) return 'Document';
-  if (mimeType.includes('json')) return 'JSON';
-  if (mimeType.includes('xml') || mimeType.includes('svg')) return 'Image';
-  if (mimeType.includes('image')) return 'Image';
-  if (mimeType.includes('font') || mimeType.includes('woff') || mimeType.includes('ttf') || mimeType.includes('opentype')) return 'Font';
-  if (mimeType.includes('video') || mimeType.includes('audio')) return 'Media';
-  if (mimeType.includes('text/plain')) return 'Text';
-  return 'Other';
-}
-
-function truncateUrl(resourceUrl, maxLength = 80) {
-  if (resourceUrl.length <= maxLength) return resourceUrl;
-  return resourceUrl.substring(0, maxLength - 3) + '...';
-}
-
-function printTable(assets) {
-  const grouped = {};
-
-  for (const asset of assets) {
-    const type = asset.type;
-    if (!grouped[type]) grouped[type] = [];
-    grouped[type].push(asset);
-  }
-
-  for (const type of Object.keys(grouped)) {
-    grouped[type].sort((a, b) => b.size - a.size);
-  }
-
-  const sortedTypes = Object.keys(grouped).sort((a, b) => {
-    const totalA = grouped[a].reduce((sum, a) => sum + a.size, 0);
-    const totalB = grouped[b].reduce((sum, a) => sum + a.size, 0);
-    return totalB - totalA;
-  });
-
-  const separator = '-'.repeat(100);
-  let grandTotal = 0;
-
-  for (const type of sortedTypes) {
-    const items = grouped[type];
-    const typeTotal = items.reduce((sum, a) => sum + a.size, 0);
-    grandTotal += typeTotal;
-
-    console.log('');
-    console.log(separator);
-    console.log(`  ${type} (${items.length} ${items.length === 1 ? 'file' : 'files'}) — Total: ${formatBytes(typeTotal)}`);
-    console.log(separator);
-
-    for (const item of items) {
-      const sizeStr = formatBytes(item.size).padStart(12);
-      console.log(`  ${sizeStr}  ${truncateUrl(item.url)}`);
+    if (arg === '--help' || arg === '-h') {
+      options.help = true;
+    } else if (arg === '--version' || arg === '-v') {
+      options.version = true;
+    } else if (arg === '--no-scroll') {
+      options.scroll = false;
+    } else if (arg === '--format' || arg === '-f') {
+      options.format = args[++i];
+    } else if (arg.startsWith('--format=')) {
+      options.format = arg.split('=')[1];
+    } else if (arg === '--output' || arg === '-o') {
+      options.output = args[++i];
+    } else if (arg.startsWith('--output=')) {
+      options.output = arg.split('=')[1];
+    } else if (arg === '--timeout' || arg === '-t') {
+      options.timeout = parseInt(args[++i], 10);
+    } else if (arg.startsWith('--timeout=')) {
+      options.timeout = parseInt(arg.split('=')[1], 10);
+    } else if (arg === '--budget' || arg === '-b') {
+      options.budget = args[++i];
+    } else if (arg.startsWith('--budget=')) {
+      options.budget = arg.split('=')[1];
+    } else if (arg === '--budget-image') {
+      options.budgetImage = args[++i];
+    } else if (arg.startsWith('--budget-image=')) {
+      options.budgetImage = arg.split('=')[1];
+    } else if (arg === '--budget-media') {
+      options.budgetMedia = args[++i];
+    } else if (arg.startsWith('--budget-media=')) {
+      options.budgetMedia = arg.split('=')[1];
+    } else if (arg === '--budget-script') {
+      options.budgetScript = args[++i];
+    } else if (arg.startsWith('--budget-script=')) {
+      options.budgetScript = arg.split('=')[1];
+    } else if (arg === '--budget-stylesheet') {
+      options.budgetStylesheet = args[++i];
+    } else if (arg.startsWith('--budget-stylesheet=')) {
+      options.budgetStylesheet = arg.split('=')[1];
+    } else if (arg === '--budget-font') {
+      options.budgetFont = args[++i];
+    } else if (arg.startsWith('--budget-font=')) {
+      options.budgetFont = arg.split('=')[1];
+    } else if (arg === '--budget-document') {
+      options.budgetDocument = args[++i];
+    } else if (arg.startsWith('--budget-document=')) {
+      options.budgetDocument = arg.split('=')[1];
+    } else if (arg === '--budget-per-asset') {
+      options.budgetPerAsset = args[++i];
+    } else if (arg.startsWith('--budget-per-asset=')) {
+      options.budgetPerAsset = arg.split('=')[1];
+    } else if (arg === '--budget-per-image') {
+      options.budgetPerImage = args[++i];
+    } else if (arg.startsWith('--budget-per-image=')) {
+      options.budgetPerImage = arg.split('=')[1];
+    } else if (arg === '--budget-per-media') {
+      options.budgetPerMedia = args[++i];
+    } else if (arg.startsWith('--budget-per-media=')) {
+      options.budgetPerMedia = arg.split('=')[1];
+    } else if (arg === '--height') {
+      options.height = parseInt(args[++i], 10);
+    } else if (arg.startsWith('--height=')) {
+      options.height = parseInt(arg.split('=')[1], 10);
+    } else if (!arg.startsWith('-')) {
+      positional.push(arg);
+    } else {
+      console.error(`Unknown option: ${arg}`);
+      process.exit(1);
     }
   }
 
-  console.log('');
-  console.log('='.repeat(100));
-  console.log(`  TOTAL PAGE WEIGHT: ${formatBytes(grandTotal)} (${assets.length} ${assets.length === 1 ? 'request' : 'requests'})`);
-  console.log('='.repeat(100));
+  if (positional.length >= 1) options.url = positional[0];
+  if (positional.length >= 2) options.width = parseInt(positional[1], 10);
+
+  return options;
 }
 
-async function scrollToBottom(page) {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      const scrollStep = Math.max(window.innerHeight / 2, 400);
-      const scrollDelay = 200;
-      let lastScrollTop = -1;
+function printHelp() {
+  console.log(`
+${pkg.name} v${pkg.version}
+${pkg.description}
 
-      const timer = setInterval(() => {
-        window.scrollBy(0, scrollStep);
-        const currentScroll = document.documentElement.scrollTop || document.body.scrollTop;
-        if (currentScroll === lastScrollTop) {
-          clearInterval(timer);
-          resolve();
-        }
-        lastScrollTop = currentScroll;
-      }, scrollDelay);
-    });
-  });
+USAGE
+  pageweight <url> <viewport-width> [options]
+
+ARGUMENTS
+  url              URL of the page to analyze
+  viewport-width   Width of the viewport in pixels
+
+OPTIONS
+  -h, --help                Show this help message
+  -v, --version             Show version number
+  -f, --format <type>       Output format: table (default), json, csv
+  -o, --output <file>       Write output to a file instead of stdout
+  -t, --timeout <ms>        Navigation timeout in milliseconds (default: 60000)
+      --height <px>         Viewport height in pixels (defaults to viewport-width,
+                            making the viewport square)
+      --no-scroll           Skip scrolling to the bottom of the page
+
+BUDGET OPTIONS (all sizes accept B, KB, MB, GB — e.g. 1MB, 500KB)
+  -b, --budget <size>       Total page weight budget
+      --budget-image <size>       Max total weight for all images combined
+      --budget-media <size>       Max total weight for all media (video/audio) combined
+      --budget-script <size>      Max total weight for all scripts combined
+      --budget-stylesheet <size>  Max total weight for all stylesheets combined
+      --budget-font <size>        Max total weight for all fonts combined
+      --budget-document <size>    Max total weight for all documents combined
+      --budget-per-asset <size>   Max weight for any single asset
+      --budget-per-image <size>   Max weight for any single image
+      --budget-per-media <size>   Max weight for any single media file
+
+  Exits with code 1 if any budget is exceeded.
+
+EXAMPLES
+  pageweight https://example.com 1440
+  pageweight https://example.com 1440 --format json
+  pageweight https://example.com 1440 --format csv --output results.csv
+  pageweight https://example.com 1440 --budget 1MB
+  pageweight https://example.com 1440 --budget 2MB --budget-image 500KB --budget-per-image 200KB
+  pageweight https://example.com 1440 --budget-media 5MB --budget-per-media 2MB
+  pageweight https://example.com 1440 --height 900
+  pageweight https://example.com 1440 --no-scroll --timeout 30000
+`);
 }
 
-async function run() {
-  console.log(`\nAnalyzing page weight for: ${url}`);
-  console.log(`Viewport: ${viewportWidth}x${viewportWidth}\n`);
-
-  const assets = [];
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+function validateOptions(options) {
+  if (!options.url) {
+    console.error('Error: URL is required.');
+    console.error('Run "pageweight --help" for usage information.');
+    process.exit(1);
+  }
 
   try {
-    const page = await browser.newPage();
-
-    await page.setViewport({
-      width: viewportWidth,
-      height: viewportWidth,
-    });
-
-    const client = await page.createCDPSession();
-    await client.send('Network.enable');
-
-    const responseData = new Map();
-
-    client.on('Network.responseReceived', (event) => {
-      const { requestId, response } = event;
-      responseData.set(requestId, {
-        url: response.url,
-        mimeType: response.mimeType,
-        headers: response.headers,
-        encodedDataLength: response.encodedDataLength || 0,
-      });
-    });
-
-    client.on('Network.loadingFinished', (event) => {
-      const { requestId, encodedDataLength } = event;
-      const data = responseData.get(requestId);
-      if (data) {
-        const size = encodedDataLength || data.encodedDataLength || 0;
-        if (data.url && !data.url.startsWith('data:')) {
-          assets.push({
-            url: data.url,
-            type: classifyResource(data.mimeType, data.url),
-            size,
-          });
-        }
+    new URL(options.url);
+  } catch {
+    if (!options.url.startsWith('http://') && !options.url.startsWith('https://')) {
+      options.url = 'https://' + options.url;
+      try {
+        new URL(options.url);
+      } catch {
+        console.error(`Error: "${options.url}" is not a valid URL.`);
+        process.exit(1);
       }
-    });
+    } else {
+      console.error(`Error: "${options.url}" is not a valid URL.`);
+      process.exit(1);
+    }
+  }
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-
-    await scrollToBottom(page);
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    printTable(assets);
-  } catch (err) {
-    console.error(`Error: ${err.message}`);
+  if (!options.width || isNaN(options.width) || options.width <= 0) {
+    console.error('Error: Viewport width must be a positive integer.');
+    console.error('Run "pageweight --help" for usage information.');
     process.exit(1);
-  } finally {
-    await browser.close();
+  }
+
+  if (options.height !== null && (isNaN(options.height) || options.height <= 0)) {
+    console.error('Error: Viewport height must be a positive integer.');
+    process.exit(1);
+  }
+
+  const validFormats = ['table', 'json', 'csv'];
+  if (!validFormats.includes(options.format)) {
+    console.error(`Error: Invalid format "${options.format}". Must be one of: ${validFormats.join(', ')}`);
+    process.exit(1);
+  }
+
+  if (isNaN(options.timeout) || options.timeout <= 0) {
+    console.error('Error: Timeout must be a positive number.');
+    process.exit(1);
   }
 }
 
-run();
+async function main() {
+  const options = parseArgs(process.argv);
+
+  if (options.help) {
+    printHelp();
+    process.exit(0);
+  }
+
+  if (options.version) {
+    console.log(`${pkg.name} v${pkg.version}`);
+    process.exit(0);
+  }
+
+  validateOptions(options);
+
+  const budgets = {};
+  const budgetFlags = {
+    budget: 'total',
+    budgetImage: 'image',
+    budgetMedia: 'media',
+    budgetScript: 'script',
+    budgetStylesheet: 'stylesheet',
+    budgetFont: 'font',
+    budgetDocument: 'document',
+    budgetPerAsset: 'perAsset',
+    budgetPerImage: 'perImage',
+    budgetPerMedia: 'perMedia',
+  };
+
+  for (const [optKey, budgetKey] of Object.entries(budgetFlags)) {
+    if (options[optKey] != null) {
+      try {
+        parseSizeString(options[optKey]);
+      } catch (err) {
+        console.error(`Error in --${optKey.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${err.message}`);
+        process.exit(1);
+      }
+      budgets[budgetKey] = options[optKey];
+    }
+  }
+
+  const hasBudgets = Object.keys(budgets).length > 0;
+  const viewportHeight = options.height || options.width;
+
+  console.log(`\nAnalyzing page weight for: ${options.url}`);
+  console.log(`Viewport: ${options.width}x${viewportHeight}`);
+  if (!options.scroll) console.log('Scrolling: disabled');
+  if (hasBudgets) {
+    const budgetSummary = Object.entries(budgets)
+      .map(([key, val]) => `${key}: ${val}`)
+      .join(', ');
+    console.log(`Budgets: ${budgetSummary}`);
+  }
+  console.log('');
+
+  try {
+    const result = await analyze({
+      url: options.url,
+      width: options.width,
+      height: viewportHeight,
+      timeout: options.timeout,
+      scroll: options.scroll,
+    });
+
+    let output;
+    switch (options.format) {
+      case 'json':
+        output = formatJSON(result.assets, {
+          url: result.url,
+          viewport: result.viewport,
+        });
+        break;
+      case 'csv':
+        output = formatCSV(result.assets);
+        break;
+      default:
+        output = formatTable(result.assets);
+        break;
+    }
+
+    if (options.output) {
+      const outputPath = path.resolve(options.output);
+      fs.writeFileSync(outputPath, output + '\n', 'utf-8');
+      console.log(`Results written to ${outputPath}`);
+    } else {
+      console.log(output);
+    }
+
+    if (hasBudgets) {
+      const violations = checkBudgets(result.assets, budgets);
+      if (violations.length > 0) {
+        console.error(`\nBudget exceeded! ${violations.length} ${violations.length === 1 ? 'violation' : 'violations'} found:\n`);
+        for (const v of violations) {
+          console.error(`  ✗ ${v.message}`);
+        }
+        console.error('');
+        process.exit(1);
+      }
+    }
+  } catch (err) {
+    console.error(`\nError: ${err.message}`);
+    if (err.message.includes('net::ERR_')) {
+      console.error('Hint: Check that the URL is correct and the site is reachable.');
+    } else if (err.message.includes('timeout')) {
+      console.error(`Hint: The page did not load within ${options.timeout}ms. Try increasing --timeout.`);
+    }
+    process.exit(1);
+  }
+}
+
+main();
