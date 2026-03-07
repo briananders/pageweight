@@ -289,6 +289,145 @@ async function analyze(options) {
   }
 }
 
+/**
+ * Parse a human-readable size string into bytes.
+ * Accepts formats like "1MB", "500KB", "2.5GB", "1048576", "100 B".
+ *
+ * @param {string} sizeStr
+ * @returns {number} Size in bytes
+ * @throws {Error} If the format is invalid
+ */
+function parseSizeString(sizeStr) {
+  if (typeof sizeStr === 'number') return Math.floor(sizeStr);
+
+  const str = String(sizeStr).trim();
+  const match = str.match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/i);
+  if (!match) {
+    throw new Error(
+      `Invalid size format: "${sizeStr}". Use a number optionally followed by B, KB, MB, or GB (e.g. 1MB, 500KB, 2.5MB).`
+    );
+  }
+
+  const value = parseFloat(match[1]);
+  const unit = (match[2] || 'b').toUpperCase();
+  const multipliers = { B: 1, KB: 1024, MB: 1024 * 1024, GB: 1024 * 1024 * 1024 };
+  return Math.floor(value * multipliers[unit]);
+}
+
+const TYPE_KEY_MAP = {
+  image: 'Image',
+  media: 'Media',
+  script: 'Script',
+  stylesheet: 'Stylesheet',
+  font: 'Font',
+  document: 'Document',
+  json: 'JSON',
+  xml: 'XML',
+  text: 'Text',
+  other: 'Other',
+};
+
+/**
+ * Check assets against a set of budget constraints.
+ *
+ * @param {Array} assets - Array of asset objects from analyze()
+ * @param {Object} budgets - Budget configuration
+ * @param {string|number} [budgets.total] - Max total page weight (e.g. "1MB" or bytes)
+ * @param {string|number} [budgets.image] - Max total weight for all Image assets
+ * @param {string|number} [budgets.media] - Max total weight for all Media assets
+ * @param {string|number} [budgets.script] - Max total weight for all Script assets
+ * @param {string|number} [budgets.stylesheet] - Max total weight for all Stylesheet assets
+ * @param {string|number} [budgets.font] - Max total weight for all Font assets
+ * @param {string|number} [budgets.document] - Max total weight for all Document assets
+ * @param {string|number} [budgets.perAsset] - Max size for any single asset
+ * @param {string|number} [budgets.perImage] - Max size for any single Image asset
+ * @param {string|number} [budgets.perMedia] - Max size for any single Media asset
+ * @returns {Array<{rule: string, message: string, actual: number, budget: number, asset?: Object}>}
+ */
+function checkBudgets(assets, budgets) {
+  if (!budgets || typeof budgets !== 'object') return [];
+
+  const violations = [];
+
+  if (budgets.total != null) {
+    const limit = parseSizeString(budgets.total);
+    const actual = assets.reduce((sum, a) => sum + a.size, 0);
+    if (actual > limit) {
+      violations.push({
+        rule: 'total',
+        message: `Total page weight ${formatBytes(actual)} exceeds budget of ${formatBytes(limit)}`,
+        actual,
+        budget: limit,
+      });
+    }
+  }
+
+  const groupKeys = ['image', 'media', 'script', 'stylesheet', 'font', 'document', 'json', 'xml', 'text', 'other'];
+  for (const key of groupKeys) {
+    if (budgets[key] != null) {
+      const limit = parseSizeString(budgets[key]);
+      const typeName = TYPE_KEY_MAP[key];
+      const groupAssets = assets.filter((a) => a.type === typeName);
+      const actual = groupAssets.reduce((sum, a) => sum + a.size, 0);
+      if (actual > limit) {
+        violations.push({
+          rule: key,
+          message: `${typeName} total ${formatBytes(actual)} exceeds budget of ${formatBytes(limit)}`,
+          actual,
+          budget: limit,
+        });
+      }
+    }
+  }
+
+  if (budgets.perAsset != null) {
+    const limit = parseSizeString(budgets.perAsset);
+    for (const asset of assets) {
+      if (asset.size > limit) {
+        violations.push({
+          rule: 'perAsset',
+          message: `${asset.type} asset ${truncateUrl(asset.url, 60)} (${formatBytes(asset.size)}) exceeds per-asset budget of ${formatBytes(limit)}`,
+          actual: asset.size,
+          budget: limit,
+          asset,
+        });
+      }
+    }
+  }
+
+  if (budgets.perImage != null) {
+    const limit = parseSizeString(budgets.perImage);
+    for (const asset of assets.filter((a) => a.type === 'Image')) {
+      if (asset.size > limit) {
+        violations.push({
+          rule: 'perImage',
+          message: `Image ${truncateUrl(asset.url, 60)} (${formatBytes(asset.size)}) exceeds per-image budget of ${formatBytes(limit)}`,
+          actual: asset.size,
+          budget: limit,
+          asset,
+        });
+      }
+    }
+  }
+
+  if (budgets.perMedia != null) {
+    const limit = parseSizeString(budgets.perMedia);
+    for (const asset of assets.filter((a) => a.type === 'Media')) {
+      if (asset.size > limit) {
+        violations.push({
+          rule: 'perMedia',
+          message: `Media ${truncateUrl(asset.url, 60)} (${formatBytes(asset.size)}) exceeds per-media budget of ${formatBytes(limit)}`,
+          actual: asset.size,
+          budget: limit,
+          asset,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 module.exports = {
   analyze,
   formatTable,
@@ -296,4 +435,6 @@ module.exports = {
   formatCSV,
   formatBytes,
   classifyResource,
+  parseSizeString,
+  checkBudgets,
 };

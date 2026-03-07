@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { analyze, formatTable, formatJSON, formatCSV } = require('../index');
+const { analyze, formatTable, formatJSON, formatCSV, formatBytes, parseSizeString, checkBudgets } = require('../index');
 const pkg = require('../package.json');
 
 function parseArgs(argv) {
@@ -15,6 +15,15 @@ function parseArgs(argv) {
     output: null,
     timeout: 60000,
     budget: null,
+    budgetImage: null,
+    budgetMedia: null,
+    budgetScript: null,
+    budgetStylesheet: null,
+    budgetFont: null,
+    budgetDocument: null,
+    budgetPerAsset: null,
+    budgetPerImage: null,
+    budgetPerMedia: null,
     scroll: true,
     help: false,
     version: false,
@@ -47,6 +56,42 @@ function parseArgs(argv) {
       options.budget = args[++i];
     } else if (arg.startsWith('--budget=')) {
       options.budget = arg.split('=')[1];
+    } else if (arg === '--budget-image') {
+      options.budgetImage = args[++i];
+    } else if (arg.startsWith('--budget-image=')) {
+      options.budgetImage = arg.split('=')[1];
+    } else if (arg === '--budget-media') {
+      options.budgetMedia = args[++i];
+    } else if (arg.startsWith('--budget-media=')) {
+      options.budgetMedia = arg.split('=')[1];
+    } else if (arg === '--budget-script') {
+      options.budgetScript = args[++i];
+    } else if (arg.startsWith('--budget-script=')) {
+      options.budgetScript = arg.split('=')[1];
+    } else if (arg === '--budget-stylesheet') {
+      options.budgetStylesheet = args[++i];
+    } else if (arg.startsWith('--budget-stylesheet=')) {
+      options.budgetStylesheet = arg.split('=')[1];
+    } else if (arg === '--budget-font') {
+      options.budgetFont = args[++i];
+    } else if (arg.startsWith('--budget-font=')) {
+      options.budgetFont = arg.split('=')[1];
+    } else if (arg === '--budget-document') {
+      options.budgetDocument = args[++i];
+    } else if (arg.startsWith('--budget-document=')) {
+      options.budgetDocument = arg.split('=')[1];
+    } else if (arg === '--budget-per-asset') {
+      options.budgetPerAsset = args[++i];
+    } else if (arg.startsWith('--budget-per-asset=')) {
+      options.budgetPerAsset = arg.split('=')[1];
+    } else if (arg === '--budget-per-image') {
+      options.budgetPerImage = args[++i];
+    } else if (arg.startsWith('--budget-per-image=')) {
+      options.budgetPerImage = arg.split('=')[1];
+    } else if (arg === '--budget-per-media') {
+      options.budgetPerMedia = args[++i];
+    } else if (arg.startsWith('--budget-per-media=')) {
+      options.budgetPerMedia = arg.split('=')[1];
     } else if (arg === '--height') {
       options.height = parseInt(args[++i], 10);
     } else if (arg.startsWith('--height=')) {
@@ -65,23 +110,6 @@ function parseArgs(argv) {
   return options;
 }
 
-function parseBudget(budgetStr) {
-  if (!budgetStr) return null;
-
-  const match = budgetStr.match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/i);
-  if (!match) {
-    console.error(`Invalid budget format: "${budgetStr}". Use a number optionally followed by B, KB, MB, or GB.`);
-    console.error('Examples: 1MB, 500KB, 2.5MB, 1048576');
-    process.exit(1);
-  }
-
-  const value = parseFloat(match[1]);
-  const unit = (match[2] || 'b').toUpperCase();
-
-  const multipliers = { B: 1, KB: 1024, MB: 1024 * 1024, GB: 1024 * 1024 * 1024 };
-  return Math.floor(value * multipliers[unit]);
-}
-
 function printHelp() {
   console.log(`
 ${pkg.name} v${pkg.version}
@@ -95,22 +123,36 @@ ARGUMENTS
   viewport-width   Width of the viewport in pixels
 
 OPTIONS
-  -h, --help             Show this help message
-  -v, --version          Show version number
-  -f, --format <type>    Output format: table (default), json, csv
-  -o, --output <file>    Write output to a file instead of stdout
-  -t, --timeout <ms>     Navigation timeout in milliseconds (default: 60000)
-  -b, --budget <size>    Page weight budget (e.g. 1MB, 500KB). Exits with
-                         code 1 if total weight exceeds the budget.
-      --height <px>      Viewport height in pixels (defaults to viewport-width,
-                         making the viewport square)
-      --no-scroll        Skip scrolling to the bottom of the page
+  -h, --help                Show this help message
+  -v, --version             Show version number
+  -f, --format <type>       Output format: table (default), json, csv
+  -o, --output <file>       Write output to a file instead of stdout
+  -t, --timeout <ms>        Navigation timeout in milliseconds (default: 60000)
+      --height <px>         Viewport height in pixels (defaults to viewport-width,
+                            making the viewport square)
+      --no-scroll           Skip scrolling to the bottom of the page
+
+BUDGET OPTIONS (all sizes accept B, KB, MB, GB — e.g. 1MB, 500KB)
+  -b, --budget <size>       Total page weight budget
+      --budget-image <size>       Max total weight for all images combined
+      --budget-media <size>       Max total weight for all media (video/audio) combined
+      --budget-script <size>      Max total weight for all scripts combined
+      --budget-stylesheet <size>  Max total weight for all stylesheets combined
+      --budget-font <size>        Max total weight for all fonts combined
+      --budget-document <size>    Max total weight for all documents combined
+      --budget-per-asset <size>   Max weight for any single asset
+      --budget-per-image <size>   Max weight for any single image
+      --budget-per-media <size>   Max weight for any single media file
+
+  Exits with code 1 if any budget is exceeded.
 
 EXAMPLES
   pageweight https://example.com 1440
   pageweight https://example.com 1440 --format json
   pageweight https://example.com 1440 --format csv --output results.csv
   pageweight https://example.com 1440 --budget 1MB
+  pageweight https://example.com 1440 --budget 2MB --budget-image 500KB --budget-per-image 200KB
+  pageweight https://example.com 1440 --budget-media 5MB --budget-per-media 2MB
   pageweight https://example.com 1440 --height 900
   pageweight https://example.com 1440 --no-scroll --timeout 30000
 `);
@@ -178,13 +220,44 @@ async function main() {
 
   validateOptions(options);
 
-  const budget = parseBudget(options.budget);
+  const budgets = {};
+  const budgetFlags = {
+    budget: 'total',
+    budgetImage: 'image',
+    budgetMedia: 'media',
+    budgetScript: 'script',
+    budgetStylesheet: 'stylesheet',
+    budgetFont: 'font',
+    budgetDocument: 'document',
+    budgetPerAsset: 'perAsset',
+    budgetPerImage: 'perImage',
+    budgetPerMedia: 'perMedia',
+  };
+
+  for (const [optKey, budgetKey] of Object.entries(budgetFlags)) {
+    if (options[optKey] != null) {
+      try {
+        parseSizeString(options[optKey]);
+      } catch (err) {
+        console.error(`Error in --${optKey.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${err.message}`);
+        process.exit(1);
+      }
+      budgets[budgetKey] = options[optKey];
+    }
+  }
+
+  const hasBudgets = Object.keys(budgets).length > 0;
   const viewportHeight = options.height || options.width;
 
   console.log(`\nAnalyzing page weight for: ${options.url}`);
   console.log(`Viewport: ${options.width}x${viewportHeight}`);
   if (!options.scroll) console.log('Scrolling: disabled');
-  if (budget) console.log(`Budget: ${options.budget}`);
+  if (hasBudgets) {
+    const budgetSummary = Object.entries(budgets)
+      .map(([key, val]) => `${key}: ${val}`)
+      .join(', ');
+    console.log(`Budgets: ${budgetSummary}`);
+  }
   console.log('');
 
   try {
@@ -220,10 +293,16 @@ async function main() {
       console.log(output);
     }
 
-    if (budget && result.totalSize > budget) {
-      const { formatBytes } = require('../index');
-      console.error(`\nBudget exceeded! Total: ${formatBytes(result.totalSize)}, Budget: ${options.budget} (${formatBytes(budget)})`);
-      process.exit(1);
+    if (hasBudgets) {
+      const violations = checkBudgets(result.assets, budgets);
+      if (violations.length > 0) {
+        console.error(`\nBudget exceeded! ${violations.length} ${violations.length === 1 ? 'violation' : 'violations'} found:\n`);
+        for (const v of violations) {
+          console.error(`  ✗ ${v.message}`);
+        }
+        console.error('');
+        process.exit(1);
+      }
     }
   } catch (err) {
     console.error(`\nError: ${err.message}`);

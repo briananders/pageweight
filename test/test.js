@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { formatBytes, classifyResource, formatTable, formatJSON, formatCSV } = require('../index');
+const { formatBytes, classifyResource, formatTable, formatJSON, formatCSV, parseSizeString, checkBudgets } = require('../index');
 
 let passed = 0;
 let failed = 0;
@@ -162,6 +162,192 @@ test('escapes quotes in URLs', () => {
   ];
   const output = formatCSV(assets);
   assert.ok(output.includes('""b""'));
+});
+
+console.log('\nparseSizeString');
+
+test('parses plain bytes', () => {
+  assert.strictEqual(parseSizeString('1024'), 1024);
+  assert.strictEqual(parseSizeString('0'), 0);
+});
+
+test('parses B suffix', () => {
+  assert.strictEqual(parseSizeString('500B'), 500);
+  assert.strictEqual(parseSizeString('500b'), 500);
+  assert.strictEqual(parseSizeString('500 B'), 500);
+});
+
+test('parses KB suffix', () => {
+  assert.strictEqual(parseSizeString('1KB'), 1024);
+  assert.strictEqual(parseSizeString('500KB'), 512000);
+  assert.strictEqual(parseSizeString('1.5KB'), 1536);
+});
+
+test('parses MB suffix', () => {
+  assert.strictEqual(parseSizeString('1MB'), 1048576);
+  assert.strictEqual(parseSizeString('2.5MB'), 2621440);
+});
+
+test('parses GB suffix', () => {
+  assert.strictEqual(parseSizeString('1GB'), 1073741824);
+});
+
+test('is case insensitive', () => {
+  assert.strictEqual(parseSizeString('1mb'), 1048576);
+  assert.strictEqual(parseSizeString('1Mb'), 1048576);
+  assert.strictEqual(parseSizeString('1MB'), 1048576);
+});
+
+test('accepts a number directly', () => {
+  assert.strictEqual(parseSizeString(2048), 2048);
+  assert.strictEqual(parseSizeString(1.7), 1);
+});
+
+test('throws on invalid format', () => {
+  assert.throws(() => parseSizeString('abc'), /Invalid size format/);
+  assert.throws(() => parseSizeString('1TB'), /Invalid size format/);
+  assert.throws(() => parseSizeString(''), /Invalid size format/);
+  assert.throws(() => parseSizeString('MB'), /Invalid size format/);
+});
+
+console.log('\ncheckBudgets');
+
+const sampleAssets = [
+  { url: 'https://example.com/app.js', type: 'Script', size: 200000 },
+  { url: 'https://example.com/vendor.js', type: 'Script', size: 150000 },
+  { url: 'https://example.com/style.css', type: 'Stylesheet', size: 50000 },
+  { url: 'https://example.com/hero.jpg', type: 'Image', size: 300000 },
+  { url: 'https://example.com/icon.png', type: 'Image', size: 5000 },
+  { url: 'https://example.com/thumb.webp', type: 'Image', size: 20000 },
+  { url: 'https://example.com/video.mp4', type: 'Media', size: 5000000 },
+  { url: 'https://example.com/clip.webm', type: 'Media', size: 1000000 },
+  { url: 'https://example.com/font.woff2', type: 'Font', size: 40000 },
+  { url: 'https://example.com/', type: 'Document', size: 15000 },
+];
+const sampleTotal = sampleAssets.reduce((s, a) => s + a.size, 0);
+
+test('returns empty array when no budgets set', () => {
+  assert.deepStrictEqual(checkBudgets(sampleAssets, {}), []);
+  assert.deepStrictEqual(checkBudgets(sampleAssets, null), []);
+});
+
+test('total budget - passes when under', () => {
+  const violations = checkBudgets(sampleAssets, { total: '100MB' });
+  assert.strictEqual(violations.length, 0);
+});
+
+test('total budget - fails when over', () => {
+  const violations = checkBudgets(sampleAssets, { total: '1MB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'total');
+  assert.ok(violations[0].actual > parseSizeString('1MB'));
+});
+
+test('image group budget - passes when under', () => {
+  const violations = checkBudgets(sampleAssets, { image: '1MB' });
+  assert.strictEqual(violations.length, 0);
+});
+
+test('image group budget - fails when over', () => {
+  const violations = checkBudgets(sampleAssets, { image: '100KB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'image');
+});
+
+test('media group budget - fails when over', () => {
+  const violations = checkBudgets(sampleAssets, { media: '1MB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'media');
+});
+
+test('script group budget - fails when over', () => {
+  const violations = checkBudgets(sampleAssets, { script: '100KB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'script');
+});
+
+test('stylesheet group budget - passes when under', () => {
+  const violations = checkBudgets(sampleAssets, { stylesheet: '100KB' });
+  assert.strictEqual(violations.length, 0);
+});
+
+test('font group budget', () => {
+  const pass = checkBudgets(sampleAssets, { font: '100KB' });
+  assert.strictEqual(pass.length, 0);
+  const fail = checkBudgets(sampleAssets, { font: '10KB' });
+  assert.strictEqual(fail.length, 1);
+  assert.strictEqual(fail[0].rule, 'font');
+});
+
+test('document group budget', () => {
+  const pass = checkBudgets(sampleAssets, { document: '100KB' });
+  assert.strictEqual(pass.length, 0);
+  const fail = checkBudgets(sampleAssets, { document: '10KB' });
+  assert.strictEqual(fail.length, 1);
+  assert.strictEqual(fail[0].rule, 'document');
+});
+
+test('per-asset budget - catches oversized assets', () => {
+  const violations = checkBudgets(sampleAssets, { perAsset: '200KB' });
+  const oversized = sampleAssets.filter((a) => a.size > parseSizeString('200KB'));
+  assert.strictEqual(violations.length, oversized.length);
+  for (const v of violations) {
+    assert.strictEqual(v.rule, 'perAsset');
+    assert.ok(v.asset);
+  }
+});
+
+test('per-asset budget - passes when all under limit', () => {
+  const violations = checkBudgets(sampleAssets, { perAsset: '10MB' });
+  assert.strictEqual(violations.length, 0);
+});
+
+test('per-image budget - only checks images', () => {
+  const violations = checkBudgets(sampleAssets, { perImage: '100KB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'perImage');
+  assert.strictEqual(violations[0].asset.type, 'Image');
+  assert.ok(violations[0].asset.url.includes('hero.jpg'));
+});
+
+test('per-media budget - only checks media', () => {
+  const violations = checkBudgets(sampleAssets, { perMedia: '2MB' });
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].rule, 'perMedia');
+  assert.strictEqual(violations[0].asset.type, 'Media');
+  assert.ok(violations[0].asset.url.includes('video.mp4'));
+});
+
+test('multiple budgets can produce multiple violations', () => {
+  const violations = checkBudgets(sampleAssets, {
+    total: '1MB',
+    image: '100KB',
+    media: '1MB',
+    perImage: '100KB',
+    perMedia: '2MB',
+  });
+  assert.ok(violations.length >= 4);
+  const rules = violations.map((v) => v.rule);
+  assert.ok(rules.includes('total'));
+  assert.ok(rules.includes('image'));
+  assert.ok(rules.includes('media'));
+  assert.ok(rules.includes('perImage'));
+  assert.ok(rules.includes('perMedia'));
+});
+
+test('budgets accept string sizes', () => {
+  const violations = checkBudgets(sampleAssets, { total: '1KB' });
+  assert.strictEqual(violations.length, 1);
+});
+
+test('budgets accept numeric values (bytes)', () => {
+  const violations = checkBudgets(sampleAssets, { total: 1024 });
+  assert.strictEqual(violations.length, 1);
+});
+
+test('group budget ignores empty groups', () => {
+  const violations = checkBudgets(sampleAssets, { xml: '1B' });
+  assert.strictEqual(violations.length, 0);
 });
 
 console.log('\n' + '='.repeat(40));

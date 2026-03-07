@@ -38,9 +38,25 @@ pageweight <url> <viewport-width> [options]
 | `-f, --format <type>` | Output format: `table` (default), `json`, `csv` |
 | `-o, --output <file>` | Write output to a file instead of stdout |
 | `-t, --timeout <ms>` | Navigation timeout in milliseconds (default: 60000) |
-| `-b, --budget <size>` | Page weight budget (e.g. `1MB`, `500KB`). Exits with code 1 if total weight exceeds the budget |
 | `--height <px>` | Viewport height in pixels (defaults to viewport-width, making the viewport square) |
 | `--no-scroll` | Skip scrolling to the bottom of the page |
+
+### Budget Options
+
+All budget sizes accept a number optionally followed by `B`, `KB`, `MB`, or `GB` (e.g. `1MB`, `500KB`, `2.5MB`). If no unit is specified, bytes are assumed. The tool exits with code 1 if any budget is exceeded.
+
+| Option | Description |
+|--------|-------------|
+| `-b, --budget <size>` | Total page weight budget |
+| `--budget-image <size>` | Max total weight for all images combined |
+| `--budget-media <size>` | Max total weight for all media (video/audio) combined |
+| `--budget-script <size>` | Max total weight for all scripts combined |
+| `--budget-stylesheet <size>` | Max total weight for all stylesheets combined |
+| `--budget-font <size>` | Max total weight for all fonts combined |
+| `--budget-document <size>` | Max total weight for all documents combined |
+| `--budget-per-asset <size>` | Max weight for any single asset |
+| `--budget-per-image <size>` | Max weight for any single image |
+| `--budget-per-media <size>` | Max weight for any single media file |
 
 ## Examples
 
@@ -66,6 +82,29 @@ Set a page weight budget (CI-friendly — exits with code 1 if exceeded):
 
 ```bash
 pageweight https://example.com 1440 --budget 1MB
+```
+
+Enforce image budgets (total and per-file):
+
+```bash
+pageweight https://example.com 1440 --budget-image 500KB --budget-per-image 200KB
+```
+
+Enforce media/video budgets:
+
+```bash
+pageweight https://example.com 1440 --budget-media 5MB --budget-per-media 2MB
+```
+
+Combine multiple budget constraints:
+
+```bash
+pageweight https://example.com 1440 \
+  --budget 2MB \
+  --budget-image 500KB \
+  --budget-media 5MB \
+  --budget-script 300KB \
+  --budget-per-asset 1MB
 ```
 
 Custom viewport height (non-square):
@@ -120,7 +159,7 @@ Comma-separated values with columns: `type`, `url`, `size_bytes`, `size_formatte
 You can also use page-weight as a library:
 
 ```javascript
-const { analyze, formatTable, formatJSON, formatCSV } = require('pageweight');
+const { analyze, formatTable, formatJSON, formatCSV, checkBudgets, parseSizeString } = require('pageweight');
 
 const result = await analyze({
   url: 'https://example.com',
@@ -161,15 +200,71 @@ console.log(formatCSV(result.assets));
 | `totalSizeFormatted` | `string` | Human-readable total size |
 | `requestCount` | `number` | Total number of requests |
 
-## Page Weight Budget
+## Page Weight Budgets
 
-The `--budget` flag is designed for CI/CD pipelines. Set a maximum page weight and the tool will exit with code 1 if the total exceeds the budget:
+The budget flags are designed for CI/CD pipelines. Set maximum weight constraints and the tool will exit with code 1 if any budget is exceeded, printing all violations.
+
+### Overall budget
 
 ```bash
 pageweight https://example.com 1440 --budget 2MB
 ```
 
-Budget supports these units: `B`, `KB`, `MB`, `GB`. If no unit is specified, bytes are assumed.
+### Per-type group budgets
+
+Limit the total weight of all assets within a type:
+
+```bash
+pageweight https://example.com 1440 --budget-image 500KB --budget-script 300KB
+```
+
+### Per-asset budgets
+
+Limit the weight of any single asset. Use `--budget-per-asset` for a universal limit, or `--budget-per-image` / `--budget-per-media` for type-specific limits:
+
+```bash
+pageweight https://example.com 1440 --budget-per-image 200KB --budget-per-media 2MB
+```
+
+### Combining budgets
+
+All budget flags can be used together. Every constraint is checked independently:
+
+```bash
+pageweight https://example.com 1440 \
+  --budget 2MB \
+  --budget-image 500KB \
+  --budget-per-image 200KB \
+  --budget-media 5MB \
+  --budget-per-media 2MB \
+  --budget-script 300KB
+```
+
+### Programmatic budget checking
+
+```javascript
+const { analyze, checkBudgets } = require('pageweight');
+
+const result = await analyze({ url: 'https://example.com', width: 1440 });
+
+const violations = checkBudgets(result.assets, {
+  total: '2MB',
+  image: '500KB',
+  media: '5MB',
+  perImage: '200KB',
+  perMedia: '2MB',
+  script: '300KB',
+  perAsset: '1MB',
+});
+
+if (violations.length > 0) {
+  for (const v of violations) {
+    console.error(v.message);
+  }
+}
+```
+
+Budget sizes accept: `B`, `KB`, `MB`, `GB`, or plain numbers (bytes).
 
 ## License
 
