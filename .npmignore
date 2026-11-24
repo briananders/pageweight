@@ -1,8 +1,10 @@
 node_modules/
 npm-debug.log*
 .DS_Store
+src/
 test/
 .github/
 *.md
 .nvmrc
+tsconfig*.json
 package-lock.json

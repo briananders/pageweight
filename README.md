@@ -1,6 +1,6 @@
 # pageweight
 
-A Node.js CLI tool that measures the total weight of a webpage on initial load. It catalogues every asset the browser fetches — scripts, stylesheets, images, fonts, and more — and presents a formatted breakdown grouped by type and sorted by size.
+A Node.js CLI tool and TypeScript library that measures the total weight of a webpage on initial load. It catalogues every asset the browser fetches — scripts, stylesheets, images, fonts, and more — and presents a formatted breakdown grouped by type and sorted by size.
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@ A Node.js CLI tool that measures the total weight of a webpage on initial load. 
 - [Output](#output)
 - [Page Weight Budgets](#page-weight-budgets)
 - [Programmatic API](#programmatic-api)
+- [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -26,14 +27,14 @@ A Node.js CLI tool that measures the total weight of a webpage on initial load. 
 - Multiple output formats: table (default), JSON, CSV
 - File output via `--output`
 - Page weight budgets — total, per-type group, and per-asset limits for CI/CD pipelines
-- Programmatic API for use as a library
+- Typed TypeScript programmatic API for use as a library (ESM and Node 26 `require()` compatible)
 
 ## Prerequisites
 
-- **Node.js** v18 or later
+- **Node.js** v26 LTS or later (see `.nvmrc`)
 - **npm** (bundled with Node.js)
 
-Puppeteer downloads a compatible version of Chromium automatically during installation, so no separate browser install is required.
+Puppeteer requires a compatible Chromium binary. If your npm version restricts install scripts, run `npx puppeteer browsers install chrome` after installing dependencies.
 
 ## Installation
 
@@ -42,23 +43,30 @@ Puppeteer downloads a compatible version of Chromium automatically during instal
 Install the package globally to make the `pageweight` command available everywhere:
 
 ```bash
-npm install -g pageweight
+npm install -g @briananders/pageweight
 ```
 
 ### Local install
 
-Clone the repository and install dependencies:
+Clone the repository, install dependencies, and compile TypeScript:
 
 ```bash
 git clone https://github.com/briananders/pageweight.git
 cd pageweight
 npm install
+npm run build
 ```
 
-Then run the tool with:
+Then run the compiled CLI with:
 
 ```bash
-node bin/pageweight.js <url> <viewport-width>
+node dist/bin/pageweight.js <url> <viewport-width>
+```
+
+Or run directly from TypeScript source on Node 26:
+
+```bash
+node src/bin/pageweight.ts <url> <viewport-width>
 ```
 
 ### Run without installing
@@ -66,7 +74,7 @@ node bin/pageweight.js <url> <viewport-width>
 Use `npx` to run the tool directly:
 
 ```bash
-npx pageweight <url> <viewport-width>
+npx @briananders/pageweight <url> <viewport-width>
 ```
 
 ## Usage
@@ -191,8 +199,8 @@ pageweight https://example.com 1440 --no-scroll --timeout 30000
 3. Navigates to the target URL and waits until network activity settles
 4. Scrolls from the top of the page to the bottom at a measured pace, triggering any lazy-loaded assets (unless `--no-scroll` is used)
 5. Waits briefly for remaining network requests to complete
-6. Collects the transfer size and MIME type of every request made by the browser
-7. Prints results in the chosen format (table, JSON, or CSV)
+6. Collects the transfer size and MIME type of every request made by the browser via Chrome DevTools Protocol
+7. Prints or exports results in the chosen format (table, JSON, or CSV)
 
 Different viewport widths can cause different assets to load (responsive images, conditional scripts, etc.), so running the tool at multiple widths gives a more complete picture of your page's weight profile.
 
@@ -229,7 +237,7 @@ Structured JSON with full metadata including per-group totals and a summary:
 {
   "url": "https://example.com",
   "viewport": { "width": 1440, "height": 1440 },
-  "timestamp": "2026-03-07T12:00:00.000Z",
+  "timestamp": "2026-11-24T12:00:00.000Z",
   "summary": {
     "totalSize": 524288,
     "totalSizeFormatted": "512.00 KB",
@@ -240,7 +248,7 @@ Structured JSON with full metadata including per-group totals and a summary:
       "count": 5,
       "totalSize": 262144,
       "totalSizeFormatted": "256.00 KB",
-      "assets": [...]
+      "assets": []
     }
   }
 }
@@ -294,10 +302,17 @@ Budget sizes accept: `B`, `KB`, `MB`, `GB`, or plain numbers (bytes).
 
 ## Programmatic API
 
-You can also use pageweight as a library:
+You can import `pageweight` as a typed ESM module (or via `require()` on Node 26):
 
-```javascript
-const { analyze, formatTable, formatJSON, formatCSV, checkBudgets, parseSizeString } = require('pageweight');
+```typescript
+import {
+  analyze,
+  formatTable,
+  formatJSON,
+  formatCSV,
+  checkBudgets,
+  parseSizeString,
+} from '@briananders/pageweight';
 
 const result = await analyze({
   url: 'https://example.com',
@@ -316,7 +331,7 @@ console.log(formatJSON(result.assets, { url: result.url, viewport: result.viewpo
 console.log(formatCSV(result.assets));
 ```
 
-### `analyze(options)` → `Promise<Result>`
+### `analyze(options)` -> `Promise<AnalyzeResult>`
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -332,16 +347,16 @@ console.log(formatCSV(result.assets));
 | Property | Type | Description |
 |----------|------|-------------|
 | `url` | `string` | The analyzed URL |
-| `viewport` | `{width, height}` | The viewport dimensions used |
-| `assets` | `Array` | All loaded assets with url, type, mimeType, statusCode, size |
+| `viewport` | `{ width: number; height: number }` | The viewport dimensions used |
+| `assets` | `AnalyzedAsset[]` | All loaded assets with `url`, `type`, `mimeType`, `statusCode`, `size` |
 | `totalSize` | `number` | Total page weight in bytes |
 | `totalSizeFormatted` | `string` | Human-readable total size |
 | `requestCount` | `number` | Total number of requests |
 
 ### Programmatic budget checking
 
-```javascript
-const { analyze, checkBudgets } = require('pageweight');
+```typescript
+import { analyze, checkBudgets } from '@briananders/pageweight';
 
 const result = await analyze({ url: 'https://example.com', width: 1440 });
 
@@ -356,10 +371,31 @@ const violations = checkBudgets(result.assets, {
 });
 
 if (violations.length > 0) {
-  for (const v of violations) {
-    console.error(v.message);
+  for (const violation of violations) {
+    console.error(violation.message);
   }
 }
+```
+
+## Development
+
+The codebase is written in strict TypeScript under `src/` and compiles to `dist/` with declaration files:
+
+- `src/types.ts` — Shared interfaces and domain types
+- `src/classify.ts` — MIME/extension classification, byte formatting, and size parsing
+- `src/formatters.ts` — Asset grouping, sorting, and table/JSON/CSV exporters
+- `src/budgets.ts` — Total, per-group, and per-asset budget evaluation
+- `src/scraper.ts` — Puppeteer and Chrome DevTools Protocol network collector
+- `src/cli.ts` — CLI argument parsing, validation, formatting, and file export
+- `src/bin/pageweight.ts` — Executable CLI entrypoint
+- `src/index.ts` — Public library barrel
+
+Useful scripts:
+
+```bash
+npm run typecheck  # Strict TypeScript static analysis across src/ and test/
+npm run build      # Compile src/ to dist/ (ESM JavaScript + .d.ts declarations)
+npm test           # Build and run the full node:test suite (unit, CLI, and e2e scrape)
 ```
 
 ## Contributing

@@ -2,16 +2,27 @@
   "name": "@briananders/pageweight",
   "version": "2.0.0",
   "description": "Simple node package that calculates the overall weight of a webpage on initial load without click interactions.",
-  "main": "index.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
-    "pageweight": "bin/pageweight.js"
+    "pageweight": "./dist/bin/pageweight.js"
   },
   "files": [
-    "bin/",
-    "index.js"
+    "dist/"
   ],
   "scripts": {
-    "test": "node test/test.js"
+    "clean": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist', { recursive: true, force: true }))\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.ts",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
   "repository": {
     "type": "git",
@@ -34,18 +45,26 @@
     "performance",
     "web",
     "chrome",
-    "puppeteer"
+    "puppeteer",
+    "typescript"
   ],
   "author": "Brian Anders <brian.steven.anders@gmail.com>",
   "license": "ISC",
   "engines": {
-    "node": ">=18"
+    "node": ">=26.0.0"
   },
   "bugs": {
     "url": "https://github.com/briananders/pageweight/issues"
   },
   "homepage": "https://github.com/briananders/pageweight#readme",
   "dependencies": {
-    "puppeteer": "^24.38.0"
+    "puppeteer": "^25.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "puppeteer@25.18.1": true
   }
 }
