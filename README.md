@@ -12,6 +12,7 @@ A Node.js CLI tool and TypeScript library that measures the total weight of a we
 - [Output](#output)
 - [Page Weight Budgets](#page-weight-budgets)
 - [Programmatic API](#programmatic-api)
+- [Chrome Extension](#chrome-extension)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -377,9 +378,42 @@ if (violations.length > 0) {
 }
 ```
 
+## Chrome Extension
+
+Pageweight also ships as a Manifest V3 Chrome Side Panel extension that shares the same classification, formatting, and budget engine as the CLI and library.
+
+### Build and Load Unpacked in Chrome
+
+1. Install dependencies and build the extension bundle:
+
+```bash
+npm install
+npm run build:extension
+```
+
+2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+3. Click **Load unpacked** and select the generated `dist-extension/` directory.
+4. Navigate to any `http://` or `https://` page and click the **Pageweight** toolbar icon to open the side panel.
+
+### How the Extension Works
+
+- Clicking **Analyze Page** attaches Chrome's DevTools Protocol debugger (`Network` and `Page` domains) to the active tab, reloads the page (optionally bypassing cache for a true cold-load measurement), optionally scrolls the page to trigger lazy-loaded assets, records exact transfer byte sizes across first-party and cross-origin requests, and detaches immediately when finished.
+- All inspection runs strictly on-device with zero external servers, zero analytics, and a `connect-src 'none'` Content Security Policy. The latest scan report lives only in ephemeral browser session memory (`chrome.storage.session`, cleared on browser close or via **Clear Report**), while optional size budgets and scan checkboxes stay on-device in `chrome.storage.local`.
+- Reports can be copied to the clipboard or downloaded as a formatted text table, JSON, or CSV directly from the side panel.
+
+### Packaging for Chrome Web Store Submission
+
+Build and package a clean Chrome Web Store submission ZIP (no source maps or dev files):
+
+```bash
+npm run package:extension
+```
+
+This creates `release/pageweight-v2.0.0.zip`. Store listing copy, permission justifications, privacy policy (`docs/privacy.html`), and store graphics (`store-assets/`) are tracked in `CHROMEWEBSTORE.md`.
+
 ## Development
 
-The codebase is written in strict TypeScript under `src/` and compiles to `dist/` with declaration files:
+The codebase is written in strict TypeScript under `src/` (CLI/library) and `extension/` (Chrome extension):
 
 - `src/types.ts` — Shared interfaces and domain types
 - `src/classify.ts` — MIME/extension classification, byte formatting, and size parsing
@@ -389,13 +423,31 @@ The codebase is written in strict TypeScript under `src/` and compiles to `dist/
 - `src/cli.ts` — CLI argument parsing, validation, formatting, and file export
 - `src/bin/pageweight.ts` — Executable CLI entrypoint
 - `src/index.ts` — Public library barrel
+- `extension/manifest.json` — Manifest V3 extension configuration
+- `extension/src/service-worker.ts` — MV3 service worker running CDP scans over port messaging
+- `extension/src/sidepanel.ts` — Side panel controller for budgets, breakdown visualization, and export
+- `extension/src/collector.ts` — Shared CDP network event collector for the extension
+- `extension/sidepanel/` — Responsive light/dark HTML and CSS for the Chrome side panel
 
 Useful scripts:
 
 ```bash
-npm run typecheck  # Strict TypeScript static analysis across src/ and test/
-npm run build      # Compile src/ to dist/ (ESM JavaScript + .d.ts declarations)
-npm test           # Build and run the full node:test suite (unit, CLI, and e2e scrape)
+npm run typecheck          # Strict TypeScript checks across src/, test/, scripts/, and extension/
+npm run build              # Compile CLI/library from src/ to dist/ and set executable bin permissions
+npm run build:extension    # Compile and stage the Chrome extension into dist-extension/
+npm run package:extension  # Build and zip release/pageweight-v2.0.0.zip for Chrome Web Store
+npm run build:all          # Build both CLI/library and Chrome extension
+npm test                   # Build everything, package extension, and run the full automated test suite
+```
+
+### Publishing to npm
+
+The package is configured for public scoped publishing (`publishConfig.access = "public"`), runs `npm run typecheck && npm test` automatically via `prepublishOnly`, and includes `.github/workflows/publish.yml` to publish with npm provenance when a GitHub Release is published (requires an `NPM_TOKEN` repository secret). To publish manually:
+
+```bash
+npm login
+npm pack --dry-run
+npm publish
 ```
 
 ## Contributing

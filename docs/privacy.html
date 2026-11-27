@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Privacy Policy — Pageweight</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: light-dark(#f8fafc, #0b1120);
+        --card: light-dark(#ffffff, #111827);
+        --border: light-dark(#e2e8f0, #334155);
+        --text: light-dark(#0f172a, #f1f5f9);
+        --muted: light-dark(#475569, #94a3b8);
+        --accent: light-dark(#059669, #10b981);
+      }
+
+      body {
+        margin: 0;
+        padding: 32px 16px;
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+      }
+
+      main {
+        max-inline-size: 46rem;
+        margin-inline: auto;
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 28px;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.25;
+      }
+
+      h2 {
+        margin-block-start: 1.75rem;
+        font-size: 1.15rem;
+      }
+
+      p,
+      li {
+        color: var(--text);
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy Policy for Pageweight</h1>
+      <p class="meta">Last updated: November 27, 2026 &middot; Published by Brian Anders</p>
+
+      <h2>Summary</h2>
+      <p>
+        Pageweight does not collect, sell, share, or transmit any personal data, browsing history,
+        or website inspection results to any remote server. Every measurement and report calculation
+        happens strictly inside your local Chrome browser.
+      </p>
+
+      <h2>What Data the Extension Handles</h2>
+      <p>
+        When you explicitly click Analyze Page, Pageweight inspects the network resource metadata
+        (asset URLs, MIME types, HTTP status codes, and transfer byte sizes) loaded by the active
+        tab during that scan. Pageweight does not inspect form inputs, passwords, cookies, or page
+        body text.
+      </p>
+
+      <h2>How Data Is Stored</h2>
+      <ul>
+        <li>
+          <strong>Latest scan report:</strong> Held temporarily in browser session memory so the
+          side panel remains populated while you work. It is never written to any external server
+          and is automatically cleared when Chrome closes, or immediately when you click Clear
+          Report.
+        </li>
+        <li>
+          <strong>Preferences and size budgets:</strong> Your optional size budgets and scan
+          checkbox preferences (such as cache bypass and scrolling) are saved locally on your device
+          only and are never synced or uploaded off-device.
+        </li>
+      </ul>
+
+      <h2>No External Servers, Analytics, or Third-Party Services</h2>
+      <p>
+        Pageweight makes zero outbound network requests from its extension pages or background
+        worker, enforces a strict Content Security Policy that blocks outbound connections, and
+        contains no analytics, telemetry, advertising, or third-party SDKs.
+      </p>
+
+      <h2>Data Retention and User Controls</h2>
+      <p>
+        You can delete your current scan report at any time with the Clear Report button, clear
+        saved size budgets with the Clear All button, or remove all local extension storage by
+        uninstalling Pageweight from Chrome.
+      </p>
+
+      <h2>Changes to This Policy</h2>
+      <p>
+        If Pageweight's data handling practices ever change, this privacy policy will be updated
+        before any new version is published.
+      </p>
+
+      <h2>Publisher &amp; Support</h2>
+      <p>
+        Publisher: Brian Anders (<a href="https://briananders.com">https://briananders.com</a>)<br />
+        Project &amp; Support:
+        <a href="https://github.com/briananders/pageweight/issues"
+          >https://github.com/briananders/pageweight/issues</a
+        >
+      </p>
+    </main>
+  </body>
+</html>

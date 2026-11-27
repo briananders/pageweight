@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pageweight</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <div class="panel-shell">
+      <header class="panel-header">
+        <div class="brand-row">
+          <div class="brand-identity">
+            <img
+              src="../icons/icon-48.png"
+              alt="Pageweight icon"
+              width="28"
+              height="28"
+              class="brand-icon"
+            />
+            <div class="brand-copy">
+              <h1 class="brand-title">Pageweight</h1>
+              <p id="active-tab-url" class="active-url">Checking active tab...</p>
+            </div>
+          </div>
+          <button id="analyze-button" type="button" class="button-primary">
+            Analyze Page
+          </button>
+        </div>
+
+        <div class="scan-options" role="group" aria-label="Scan options">
+          <label class="checkbox-field" for="opt-bypass-cache">
+            <input id="opt-bypass-cache" type="checkbox" checked />
+            <span>Bypass cache (cold load)</span>
+          </label>
+          <label class="checkbox-field" for="opt-scroll">
+            <input id="opt-scroll" type="checkbox" checked />
+            <span>Scroll for lazy assets</span>
+          </label>
+        </div>
+      </header>
+
+      <main class="panel-main">
+        <div
+          id="status-banner"
+          class="status-banner"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></div>
+
+        <section id="empty-state" class="card empty-state">
+          <h2 class="section-heading">Measure Initial Load Weight</h2>
+          <p class="muted-copy">
+            Click Analyze Page to reload the active tab with network inspection enabled,
+            capture every transferred resource, and inspect assets grouped by type.
+          </p>
+        </section>
+
+        <section id="report-section" class="report-stack" hidden>
+          <section class="card" aria-labelledby="summary-heading">
+            <div class="section-header">
+              <h2 id="summary-heading" class="section-heading">Summary</h2>
+              <span id="report-timestamp" class="meta-label"></span>
+            </div>
+            <p id="report-url" class="report-url"></p>
+
+            <div class="metrics-grid">
+              <div class="metric-tile">
+                <span class="metric-label">Total Weight</span>
+                <strong id="metric-total-size" class="metric-value">0 B</strong>
+              </div>
+              <div class="metric-tile">
+                <span class="metric-label">Requests</span>
+                <strong id="metric-request-count" class="metric-value">0</strong>
+              </div>
+              <div class="metric-tile">
+                <span class="metric-label">Viewport</span>
+                <strong id="metric-viewport" class="metric-value">-</strong>
+              </div>
+              <div class="metric-tile">
+                <span class="metric-label">Budgets</span>
+                <strong id="metric-budget-status" class="metric-value">Not set</strong>
+              </div>
+            </div>
+
+            <div class="breakdown-block">
+              <div
+                id="weight-bar"
+                class="weight-bar"
+                role="img"
+                aria-label="Proportional asset weight by type"
+              ></div>
+              <ul id="weight-legend" class="weight-legend"></ul>
+            </div>
+          </section>
+
+          <section
+            id="violations-card"
+            class="card violations-card"
+            aria-labelledby="violations-heading"
+            hidden
+          >
+            <h2 id="violations-heading" class="section-heading violations-heading">
+              Budget Violations
+            </h2>
+            <ul id="violations-list" class="violations-list"></ul>
+          </section>
+
+          <section class="card" aria-labelledby="export-heading">
+            <div class="section-header">
+              <h2 id="export-heading" class="section-heading">Export Report</h2>
+              <span id="export-feedback" class="meta-label" aria-live="polite"></span>
+            </div>
+            <div class="export-controls">
+              <label class="visually-hidden" for="export-format">Export format</label>
+              <select id="export-format" class="select-input">
+                <option value="table">Table (.txt)</option>
+                <option value="json">JSON (.json)</option>
+                <option value="csv">CSV (.csv)</option>
+              </select>
+              <div class="export-actions">
+                <button id="copy-export-button" type="button" class="button-secondary">
+                  Copy
+                </button>
+                <button id="download-export-button" type="button" class="button-secondary">
+                  Download
+                </button>
+                <button id="clear-report-button" type="button" class="button-secondary">
+                  Clear Report
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="assets-heading">
+            <div class="section-header">
+              <h2 id="assets-heading" class="section-heading">Assets by Type</h2>
+              <span id="assets-count-label" class="meta-label"></span>
+            </div>
+            <div id="asset-groups" class="asset-groups"></div>
+          </section>
+        </section>
+
+        <details id="budgets-panel" class="card budgets-panel">
+          <summary class="budgets-summary">
+            <span class="section-heading">Page Weight Budgets</span>
+            <span id="budgets-badge" class="meta-label">Optional</span>
+          </summary>
+          <form id="budgets-form" class="budgets-form" novalidate>
+            <p class="muted-copy">
+              Enter limits such as 2MB, 500KB, or bytes. Leave blank to disable a rule.
+            </p>
+            <div class="budgets-grid">
+              <div class="field-group">
+                <label class="field-label" for="budget-total">Total page</label>
+                <input id="budget-total" name="total" type="text" placeholder="e.g. 2MB" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-image">Images total</label>
+                <input id="budget-image" name="image" type="text" placeholder="e.g. 500KB" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-script">Scripts total</label>
+                <input id="budget-script" name="script" type="text" placeholder="e.g. 300KB" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-stylesheet">Stylesheets total</label>
+                <input
+                  id="budget-stylesheet"
+                  name="stylesheet"
+                  type="text"
+                  placeholder="e.g. 150KB"
+                />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-media">Media total</label>
+                <input id="budget-media" name="media" type="text" placeholder="e.g. 5MB" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-font">Fonts total</label>
+                <input id="budget-font" name="font" type="text" placeholder="e.g. 200KB" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-document">Documents total</label>
+                <input
+                  id="budget-document"
+                  name="document"
+                  type="text"
+                  placeholder="e.g. 100KB"
+                />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-perAsset">Single asset</label>
+                <input
+                  id="budget-perAsset"
+                  name="perAsset"
+                  type="text"
+                  placeholder="e.g. 500KB"
+                />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-perImage">Single image</label>
+                <input
+                  id="budget-perImage"
+                  name="perImage"
+                  type="text"
+                  placeholder="e.g. 200KB"
+                />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="budget-perMedia">Single media</label>
+                <input
+                  id="budget-perMedia"
+                  name="perMedia"
+                  type="text"
+                  placeholder="e.g. 2MB"
+                />
+              </div>
+            </div>
+            <p id="budgets-error" class="form-error" role="alert" hidden></p>
+            <div class="budgets-actions">
+              <button type="submit" class="button-primary">Save Budgets</button>
+              <button id="clear-budgets-button" type="button" class="button-secondary">
+                Clear All
+              </button>
+            </div>
+          </form>
+        </details>
+      </main>
+    </div>
+
+    <script type="module" src="../extension/src/sidepanel.js"></script>
+  </body>
+</html>

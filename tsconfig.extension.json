@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-extension",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["chrome"]
+  },
+  "include": [
+    "extension/src/**/*.ts",
+    "src/types.ts",
+    "src/classify.ts",
+    "src/formatters.ts",
+    "src/budgets.ts"
+  ]
+}

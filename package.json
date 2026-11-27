@@ -1,6 +1,6 @@
 {
   "name": "@briananders/pageweight",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Simple node package that calculates the overall weight of a webpage on initial load without click interactions.",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,19 +9,26 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
-    "pageweight": "./dist/bin/pageweight.js"
+    "pageweight": "dist/bin/pageweight.js"
   },
   "files": [
     "dist/"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "clean": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist', { recursive: true, force: true }))\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/*.test.ts",
+    "clean": "node -e \"import('node:fs').then((fs) => { fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('dist-extension', { recursive: true, force: true }); fs.rmSync('release', { recursive: true, force: true }); })\"",
+    "build": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist', { recursive: true, force: true }))\" && tsc -p tsconfig.build.json && node scripts/postbuild-npm.ts",
+    "build:extension": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist-extension', { recursive: true, force: true }))\" && tsc -p tsconfig.extension.json && node scripts/build-extension.ts",
+    "package:extension": "npm run build:extension && node scripts/package-extension.ts",
+    "build:all": "npm run build && npm run build:extension",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.extension.json --noEmit",
+    "test": "npm run build:all && npm run package:extension && node --test test/*.test.ts",
     "prepublishOnly": "npm run typecheck && npm test"
   },
   "repository": {
@@ -45,10 +52,14 @@
     "performance",
     "web",
     "chrome",
+    "chrome-extension",
     "puppeteer",
     "typescript"
   ],
-  "author": "Brian Anders <brian.steven.anders@gmail.com>",
+  "author": {
+    "name": "Brian Anders",
+    "url": "https://briananders.com"
+  },
   "license": "ISC",
   "engines": {
     "node": ">=26.0.0"
@@ -61,10 +72,8 @@
     "puppeteer": "^25.18.1"
   },
   "devDependencies": {
+    "@types/chrome": "^0.3.7",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2"
-  },
-  "allowScripts": {
-    "puppeteer@25.18.1": true
   }
 }

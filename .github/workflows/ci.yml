@@ -33,5 +33,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build and run tests
+      - name: Build, package, and run tests
         run: npm test
+
+      - name: Dry-run npm publish tarball
+        run: npm pack --dry-run

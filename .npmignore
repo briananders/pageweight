@@ -2,6 +2,12 @@ node_modules/
 npm-debug.log*
 .DS_Store
 src/
+extension/
+scripts/
+docs/
+store-assets/
+dist-extension/
+release/
 test/
 .github/
 *.md
